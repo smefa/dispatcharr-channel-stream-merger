@@ -1,0 +1,67 @@
+{
+  "name": "Channel Stream Merger",
+  "version": "2.3.0",
+  "description": "Pairs quality-variant streams into a single channel with ordered fallback. Simply list your quality tags (e.g. FHD,HD,4K) in priority order — first is primary, rest are fallbacks. Supports dry-run, and auto-run after M3U refresh. Perfect for Auto channel sync",
+  "author": "Dispatcharr Plugin",
+  "help_url": "",
+  "fields": [
+    {
+      "id": "enabled",
+      "label": "Enabled",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "id": "quality_tags",
+      "label": "Quality Tags (highest priority first)",
+      "type": "string",
+      "default": "2160p,4K,1080p,FHD,720p,HD,480p,SD,[notag]",
+      "help_text": "Comma-separated quality tags to search for in stream names. Left = highest priority (primary). Right = lowest (last fallback). Case-insensitive. Use [notag] as a placeholder for streams with no quality tag — place it where you want untagged streams to rank."
+    },
+    {
+      "id": "selected_groups",
+      "label": "Selected Groups (comma-separated)",
+      "type": "string",
+      "default": "",
+      "help_text": "Only process channel groups matching these names (case-insensitive). Leave blank to process all auto-sync groups."
+    },
+    {
+      "id": "auto_run",
+      "label": "Auto-Run After M3U Refresh",
+      "type": "boolean",
+      "default": false,
+      "help_text": "When enabled, the join action triggers automatically after every M3U refresh completes."
+    },
+    {
+      "id": "verbose_logging",
+      "label": "Verbose Logging",
+      "type": "boolean",
+      "default": false,
+      "help_text": "Log every match, candidate, merge decision, and exclusion reason for troubleshooting."
+    }
+  ],
+  "actions": [
+    {
+      "id": "join_streams",
+      "label": "Join Paired Streams",
+      "description": "Find and merge quality-variant streams into single channels with ordered fallback.",
+      "button_label": "Run Join",
+      "button_variant": "filled",
+      "button_color": "blue",
+      "events": ["m3u_refresh"],
+      "confirm": {
+        "required": true,
+        "title": "Join Paired Streams?",
+        "message": "This will merge quality-variant streams into single channels and delete redundant channels. Use 'Dry Run' first to preview."
+      }
+    },
+    {
+      "id": "dry_run",
+      "label": "Dry Run (Preview)",
+      "description": "Preview which streams would be merged without making any changes. Check log for details.",
+      "button_label": "Preview",
+      "button_variant": "outline",
+      "button_color": "gray"
+    }
+  ]
+}
