@@ -58,6 +58,8 @@ A **Dispatcharr plugin** that automatically merges quality-variant streams (e.g.
 | **Dry Run (Preview)** | Shows what would merge — check the log for per-stream details |
 
 ---
+Made by AI, handle with care!
+---
 
 ## How It Works
 
@@ -139,16 +141,8 @@ With **Verbose Logging** enabled, the plugin logs:
 
 ## Requirements
 
-- **Dispatcharr** ≥ 0.26.0
+- **Dispatcharr** ≥ 0.27.0
 - **Auto Channel Sync** enabled on at least one M3U account group
-
----
-
-## Building
-
-```powershell
-Compress-Archive -Path data\plugins\channel_stream_merger -DestinationPath channel_stream_merger.zip
-```
 
 ---
 
