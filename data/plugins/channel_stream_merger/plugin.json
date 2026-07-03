@@ -1,6 +1,6 @@
 {
   "name": "Channel Stream Merger",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Pairs quality-variant streams into a single channel with ordered fallback. Simply list your quality tags (e.g. FHD,HD,4K) in priority order — first is primary, rest are fallbacks. Supports dry-run, and auto-run after M3U refresh. Perfect for Auto channel sync",
   "author": "Dispatcharr Plugin",
   "help_url": "",

@@ -8,7 +8,6 @@ with ordered fallback. Uses configurable quality tags (comma-separated, first
 """
 
 import re as re_builtin
-import regex as re_module
 from django.db import transaction
 from django.db import close_old_connections
 
@@ -55,13 +54,15 @@ def _match_base_name(stream_name, regex_pattern, tags_list, plog):
                 flags=re_builtin.IGNORECASE,
             )
             base = re_builtin.sub(r'\s+', ' ', base).strip()
-            # Find which tag matched — simple substring, no regex
+            # Find which tag matched — use word boundaries to avoid false
+            # matches (e.g. tag "HD" matching inside "FHD")
             name_upper = stream_name.upper()
             matched = "plain"
             for t in tags_list:
                 if t.upper() == "[NOTAG]":
                     continue
-                if re_builtin.escape(t).upper() in name_upper:
+                escaped = re_builtin.escape(t).upper()
+                if re_builtin.search(r"\b" + escaped + r"\b", name_upper):
                     matched = t
                     break
             plog.debug("Matched '%s' → tag='%s' → base='%s'",
@@ -181,18 +182,12 @@ def _process_pairs(
         # -- merge all variants per base name ---------------------------------
         # Quality priority = tag position: lower index = higher quality = tried first.
 
-        def _quality_rank(channel):
-            """Return the priority rank for a channel based on which quality
-            tag appears in its name. Lower number = higher priority.
+        def _quality_rank(channel, matched_tag):
+            """Return the priority rank for a (channel, tag) pair based on the
+            already-matched tag. Lower number = higher priority.
             Unknown tags rank after all known ones."""
-            return _find_tag_rank(channel)
-
-        def _find_tag_rank(channel):
-            name_upper = channel.name.upper()
-            for tag, rank in sorted(tag_rank.items(), key=lambda kv: kv[1]):
-                escaped = re_builtin.escape(tag)
-                if re_builtin.search(r"\b" + escaped + r"\b", name_upper):
-                    return rank
+            if matched_tag is not None:
+                return tag_rank.get(matched_tag.upper(), 99)
             return plain_rank if plain_rank is not None else 99
 
         group_merges = []  # (base_name, surviving_ch, surviving_tag, [streams+tags], [channels+tags])
@@ -210,7 +205,7 @@ def _process_pairs(
             # Pick the surviving channel: prefer the highest-quality matched
             # variant (or lowest channel_number as tie-breaker).
             if matched_list:
-                matched_list.sort(key=lambda ct: (_quality_rank(ct[0]), ct[0].channel_number or 999999))
+                matched_list.sort(key=lambda ct: (_quality_rank(ct[0], ct[1]), ct[0].channel_number or 999999))
                 survivor, survivor_tag = matched_list[0]
             else:
                 plain_list.sort(key=lambda ct: ct[0].channel_number or 999999)
@@ -244,18 +239,11 @@ def _process_pairs(
             if not streams_to_add:
                 continue  # nothing to merge (survivor is the only channel)
 
-            def _stream_name(ch):
-                cs = list(ch.channelstream_set.all())
-                return cs[0].stream.name if cs else "?"
-
-            deleted_names = [f"'{ch.name}'(stream:'{_stream_name(ch)}', tag={tag})"
-                           for ch, tag in channels_to_delete]
             group_merges.append((base_name, survivor, survivor_tag, streams_to_add, channels_to_delete))
             plog.debug(
-                "Base '%s': merging %d variant(s) → survivor='%s'(stream:'%s',%s,#%d), delete: [%s]",
+                "Base '%s': merging %d variant(s) → survivor='%s'(%s,#%d)",
                 base_name, len(channels_to_delete),
-                survivor.name, _stream_name(survivor), survivor_tag, survivor.channel_number,
-                ", ".join(deleted_names),
+                survivor.name, survivor_tag, survivor.channel_number,
             )
 
         if not group_merges:
@@ -267,8 +255,15 @@ def _process_pairs(
             "Group '%s': merging %d base(s)", group_name, len(group_merges),
         )
 
+        # Helper to extract stream name from a channel (cached via prefetch)
+        def _stream_name(ch):
+            cs = list(ch.channelstream_set.all())
+            return cs[0].stream.name if cs else "?"
+
         # -- execute or record merges ------------------------------------------
         for base_name, survivor, survivor_tag, streams_to_add, channels_to_delete in group_merges:
+            deleted_names = [f"'{ch.name}'(stream:'{_stream_name(ch)}', tag={tag})"
+                           for ch, tag in channels_to_delete]
             if dry_run:
                 for stream, order in streams_to_add:
                     report.append({
@@ -281,8 +276,6 @@ def _process_pairs(
                         "secondary_stream_name": stream.name,
                         "order": order,
                     })
-                deleted_names = [f"'{ch.name}'(stream:'{_stream_name(ch)}', tag={tag})"
-                               for ch, tag in channels_to_delete]
                 plog.info(
                     "[DRY RUN] '%s': keep '%s'(stream:'%s',%s,#%d), add %d stream(s), delete: [%s]",
                     base_name, survivor.name, _stream_name(survivor), survivor_tag,
@@ -302,8 +295,6 @@ def _process_pairs(
                             ch.delete()
                     paired += len(streams_to_add)
                     deleted += len(channels_to_delete)
-                    deleted_names = [f"'{ch.name}'(stream:'{_stream_name(ch)}', tag={tag})"
-                                   for ch, tag in channels_to_delete]
                     plog.info(
                         "MERGED: base='%s' → '%s'(stream:'%s',%s,#%d) +%d stream(s) -%d channel(s): [%s]",
                         base_name, survivor.name, _stream_name(survivor), survivor_tag,
@@ -487,7 +478,7 @@ class Plugin:
     """Channel Stream Merger — Dispatcharr Plugin."""
 
     name = "Channel Stream Merger"
-    version = "2.3.0"
+    version = "2.3.1"
     description = (
         "Pairs quality-variant streams into a single channel with ordered "
         "fallback. List your quality tags (e.g. FHD,HD,4K) in "
