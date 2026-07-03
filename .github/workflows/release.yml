@@ -1,0 +1,68 @@
+name: Create and publish release ZIP (data only)
+
+# Trigger on tag pushes like v1.2.3 and allow manual runs
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (only for manual runs)'
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ -n "${{ github.ref_name }}" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "No tag available. Use workflow_dispatch with 'tag' input or push a tag like v1.2.3." >&2
+            exit 1
+          fi
+
+      - name: Create ZIP of data directory (current commit)
+        run: |
+          if [ ! -d "data" ]; then
+            echo "data directory not found in the workspace" >&2
+            exit 1
+          fi
+          ZIP_NAME="dispatcharr-plugin-${{ steps.tag.outputs.tag }}-data.zip"
+          # Archive only tracked files under `data` from the current commit
+          git archive --format=zip --output "$ZIP_NAME" ${{ github.sha }} data
+          ls -lh "$ZIP_NAME"
+        shell: bash
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: Release ${{ steps.tag.outputs.tag }}
+          body: Automated release (data-only) for the Dispatcharr plugin
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release asset (zip)
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dispatcharr-plugin-${{ steps.tag.outputs.tag }}-data.zip
+          asset_name: dispatcharr-plugin-${{ steps.tag.outputs.tag }}-data.zip
+          asset_content_type: application/zip
