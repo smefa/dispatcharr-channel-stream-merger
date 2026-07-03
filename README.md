@@ -1,4 +1,4 @@
-# Channel Stream Merger
+# Channel Stream Merger Plugin
 
 A **Dispatcharr plugin** that automatically merges quality-variant streams (e.g. `ESPN FHD` + `ESPN HD` + `ESPN`) into a **single channel** with ordered fallback. The proxy tries the highest-quality stream first, then falls back down the chain.
 
